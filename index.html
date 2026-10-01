@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>TITAN SIEM Enterprise</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- JetBrains Mono for data / IP fields -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: [
+                '"JetBrains Mono"',
+                'ui-monospace',
+                'SFMono-Regular',
+                'Menlo',
+                'Monaco',
+                'Consolas',
+                '"Liberation Mono"',
+                '"Courier New"',
+                'monospace',
+              ],
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Chart.js (native, no react-chartjs-2) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        background-color: #020617;
+        color: #e5e7eb;
+      }
+
+      .bg-grid {
+        background-image: linear-gradient(
+            to right,
+            rgba(30, 64, 175, 0.18) 1px,
+            transparent 1px
+          ),
+          linear-gradient(to bottom, rgba(30, 64, 175, 0.18) 1px, transparent 1px);
+        background-size: 36px 36px;
+      }
+
+      .panel-glow {
+        box-shadow: 0 0 0 1px rgba(30, 64, 175, 0.7),
+          0 0 45px rgba(16, 185, 129, 0.12);
+      }
+
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #4b5563 #020617;
+      }
+      *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      *::-webkit-scrollbar-track {
+        background: #020617;
+      }
+      *::-webkit-scrollbar-thumb {
+        background-color: #4b5563;
+        border-radius: 999px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useMemo, useRef } = React;
+
+      // ---------------------- Login Screen ---------------------- //
+function Login({ onSuccess }) {
+  return (
+    <div className="min-h-screen relative overflow-hidden bg-slate-950">
+      <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
+        <div className="w-full max-w-md border border-emerald-500/40 bg-slate-900/80 rounded-2xl panel-glow p-6 space-y-5">
+
+          <div>
+            <div className="text-sm uppercase tracking-[0.25em] text-emerald-400">
+              TITAN SIEM
+            </div>
+
+            <div className="text-lg font-semibold text-slate-100">
+              Security Operations Dashboard
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 font-mono">
+            Educational cybersecurity simulation using the CIC-IDS2017 dataset.
+          </p>
+
+          <button
+            onClick={onSuccess}
+            className="w-full rounded-xl bg-emerald-500/90 text-sm font-semibold text-slate-950 py-2.5 hover:bg-emerald-400 transition-colors"
+          >
+            Enter Demo
+          </button>
+
+          <p className="text-[10px] text-slate-500 font-mono">
+            Demo environment — no production authentication.
+          </p>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+      // ---------------------- Traffic Chart (PPS, native Chart.js) ---------------------- //
+      function TrafficChart({ points }) {
+        const canvasRef = useRef(null);
+        const chartRef = useRef(null);
+
+        useEffect(() => {
+          const ctx = canvasRef.current?.getContext("2d");
+          if (!ctx || !window.Chart) return;
+
+          if (!chartRef.current) {
+            chartRef.current = new Chart(ctx, {
+              type: "line",
+              data: {
+                labels: points.map((p) => p.label),
+                datasets: [
+                  {
+                    label: "Packets / sec",
+                    data: points.map((p) => p.value),
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderColor: "#10b981",
+                    backgroundColor: "rgba(16,185,129,0.12)",
+                  },
+                ],
+              },
+              options: {
+                animation: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    labels: {
+                      color: "#e5e7eb",
+                      font: { size: 10 },
+                    },
+                  },
+                },
+                scales: {
+                  x: {
+                    ticks: {
+                      color: "#9ca3af",
+                      maxTicksLimit: 6,
+                      font: { size: 9 },
+                    },
+                    grid: {
+                      color: "#333333",
+                    },
+                  },
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      color: "#9ca3af",
+                      font: { size: 9 },
+                    },
+                    grid: {
+                      color: "#333333",
+                    },
+                  },
+                },
+              },
+            });
+          }
+
+          return () => {
+            if (chartRef.current) {
+              chartRef.current.destroy();
+              chartRef.current = null;
+            }
+          };
+        }, []);
+
+        useEffect(() => {
+          if (!chartRef.current) return;
+          const chart = chartRef.current;
+          chart.data.labels = points.map((p) => p.label);
+          chart.data.datasets[0].data = points.map((p) => p.value);
+
+          const latest = points.length ? points[points.length - 1].value : 0;
+          const lineColor = latest > 50 ? "#ef4444" : "#10b981";
+          const bgColor =
+            latest > 50 ? "rgba(239,68,68,0.15)" : "rgba(16,185,129,0.12)";
+          chart.data.datasets[0].borderColor = lineColor;
+          chart.data.datasets[0].backgroundColor = bgColor;
+
+          chart.update("none");
+        }, [points]);
+
+        return (
+          <div className="w-full h-full">
+            <canvas ref={canvasRef} className="w-full h-full" />
+          </div>
+        );
+      }
+
+      // ---------------------- Alert Modal ---------------------- //
+      function AlertModal({ alert, onClose, onExecute, actionInFlight, actionResult }) {
+        const src = alert.src_ip || "N/A";
+        const dst = alert.dst_ip || "N/A";
+        const label = alert.attack_name || "Behavioral Detection";
+        const sev = (alert.severity || "").toUpperCase();
+        const status = (alert.status || "ACTIVE").toUpperCase();
+
+        const sevColor =
+          sev === "CRITICAL"
+            ? "text-red-400"
+            : sev === "WARNING"
+            ? "text-amber-300"
+            : "text-sky-300";
+
+        function buttonSuffix() {
+          if (!actionResult) return null;
+          return (
+            <span className="text-[9px] opacity-90">
+              — {actionResult.ok ? "Simulated" : "Failed"}
+            </span>
+          );
+        }
+
+        // jsPDF report generation
+        function handleDownloadReport() {
+          try {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+              alert("jsPDF is not available in this environment.");
+              return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            let y = 20;
+
+            // Header
+            doc.setFontSize(16);
+            doc.text("TITAN SIEM - INCIDENT REPORT", 105, y, { align: "center" });
+
+            // Incident basics
+            doc.setFontSize(11);
+            y += 10;
+            doc.text(`Incident ID: ${alert.id}`, 14, y);
+            y += 6;
+            doc.text(`Timestamp: ${alert.time}`, 14, y);
+
+            // Threat Intelligence section
+            y += 10;
+            doc.setFontSize(13);
+            doc.text("Threat Intelligence", 14, y);
+            doc.setLineWidth(0.3);
+            doc.line(14, y + 1, 80, y + 1);
+            y += 7;
+
+            const attackerIp = alert.src_ip || "N/A";
+            const dstPort =
+              alert.dst_port != null && alert.dst_port !== -1
+                ? String(alert.dst_port)
+                : "-";
+            const targetSystem = `${alert.dst_ip || "N/A"} : ${dstPort}`;
+            const classification = alert.attack_name || "Behavioral Detection";
+
+            doc.setFontSize(11);
+            doc.text(`Attacker IP: ${attackerIp}`, 14, y);
+            y += 6;
+            doc.text(`Target System: ${targetSystem}`, 14, y);
+            y += 6;
+            doc.text(`Classification: ${classification}`, 14, y);
+            y += 6;
+            doc.text(`Status: ${status}`, 14, y);
+
+            // Footer
+            doc.setFontSize(9);
+            doc.text(
+              "Generated automatically by TITAN AI Defense System.",
+              14,
+              290
+            );
+
+            doc.save(`TITAN_INCIDENT_${alert.id}.pdf`);
+          } catch (e) {
+            console.error(e);
+            alert("Failed to generate PDF report.");
+          }
+        }
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl border border-slate-700/80 bg-slate-950/95 panel-glow px-4 py-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    Response Matrix — Alert Detail
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Choose a SOAR playbook action across Network, Identity and Forensics domains.
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="text-slate-400 hover:text-slate-100 text-lg leading-none px-2"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-1">
+                Alert Metadata
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                <div className="border border-slate-700 rounded-xl bg-slate-900/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500 mb-0.5">Source IP</div>
+                  <div className="text-xs font-mono text-emerald-300">{src}</div>
+                </div>
+                <div className="border border-slate-700 rounded-xl bg-slate-900/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500 mb-0.5">Destination IP</div>
+                  <div className="text-xs font-mono text-sky-300">{dst}</div>
+                </div>
+                <div className="border border-slate-700 rounded-xl bg-slate-900/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500 mb-0.5">Heuristic Attack</div>
+                  <div className="text-xs font-mono text-amber-300">
+                    {alert.attack_name || "Behavioral Detection"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-400 mb-2">
+                <span className="text-amber-300">Layer:</span> {alert.layer || "BEHAVIORAL"} •{" "}
+                <span className={sevColor}>Severity:</span> {sev || "N/A"} •{" "}
+                <span className="text-indigo-300">Scenario:</span>{" "}
+                {alert.scenario_day || "N/A"} •{" "}
+                <span className="text-sky-300">Status:</span> {status}
+              </div>
+
+              <div className="border border-slate-700 rounded-xl bg-slate-900/70 px-3 py-2 mb-3 text-[11px]">
+                <span className="text-slate-400">Description:</span>{" "}
+                <span className="text-slate-100">{alert.description}</span>
+              </div>
+
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-1">
+                Playbook Actions
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+                {/* Network */}
+                <div className="border border-slate-700 rounded-xl bg-slate-950/80 px-3 py-2">
+                  <div className="text-[11px] font-semibold text-slate-100 mb-2">
+                    Network Defense
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("BLOCK_IP")}
+                      className="inline-flex items-center justify-center rounded-full border border-red-500/80 bg-red-900/80 text-xs font-medium text-red-100 px-3 py-1.5 hover:bg-red-700/80 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-red-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">⛔</span>
+                      )}
+                      Block IP
+                      {buttonSuffix()}
+                    </button>
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("ISOLATE_VLAN")}
+                      className="inline-flex items-center justify-center rounded-full border border-amber-500/80 bg-amber-900/70 text-xs font-medium text-amber-100 px-3 py-1.5 hover:bg-amber-700/80 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-amber-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">🛡</span>
+                      )}
+                      Isolate VLAN
+                      {buttonSuffix()}
+                    </button>
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("APPLY_QOS_THROTTLE")}
+                      className="inline-flex items-center justify-center rounded-full border border-amber-500/60 text-xs font-medium text-amber-100 px-3 py-1.5 hover:bg-amber-900/60 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-amber-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">📉</span>
+                      )}
+                      Throttling
+                      {buttonSuffix()}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Identity */}
+                <div className="border border-slate-700 rounded-xl bg-slate-950/80 px-3 py-2">
+                  <div className="text-[11px] font-semibold text-slate-100 mb-2">
+                    Identity (IAM)
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("DISABLE_AD_USER")}
+                      className="inline-flex items-center justify-center rounded-full border border-sky-500/80 bg-sky-900/80 text-xs font-medium text-sky-100 px-3 py-1.5 hover:bg-sky-800/90 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-sky-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">🔐</span>
+                      )}
+                      Disable AD User
+                      {buttonSuffix()}
+                    </button>
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("RESET_PASSWORD")}
+                      className="inline-flex items-center justify-center rounded-full border border-sky-500/60 text-xs font-medium text-sky-100 px-3 py-1.5 hover:bg-sky-900/60 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-sky-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">🔁</span>
+                      )}
+                      Reset Password
+                      {buttonSuffix()}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Forensics */}
+                <div className="border border-slate-700 rounded-xl bg-slate-950/80 px-3 py-2">
+                  <div className="text-[11px] font-semibold text-slate-100 mb-2">
+                    Forensics
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("TRIGGER_PCAP_CAPTURE")}
+                      className="inline-flex items-center justify-center rounded-full border border-purple-500/80 bg-purple-900/80 text-xs font-medium text-purple-100 px-3 py-1.5 hover:bg-purple-800/90 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-purple-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">📡</span>
+                      )}
+                      Packet Capture (PCAP)
+                      {buttonSuffix()}
+                    </button>
+                    <button
+                      disabled={actionInFlight}
+                      onClick={() => onExecute("SNAPSHOT_VM")}
+                      className="inline-flex items-center justify-center rounded-full border border-purple-500/60 text-xs font-medium text-purple-100 px-3 py-1.5 hover:bg-purple-900/60 transition-colors disabled:opacity-60"
+                    >
+                      {actionInFlight ? (
+                        <span className="w-3.5 h-3.5 border-2 border-purple-200 border-t-transparent rounded-full animate-spin mr-1.5" />
+                      ) : (
+                        <span className="mr-1.5">💾</span>
+                      )}
+                      Snapshot VM
+                      {buttonSuffix()}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-slate-700 pt-2 mt-2">
+                <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                  {actionInFlight && (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+                      <span>Processing SOAR action...</span>
+                    </>
+                  )}
+                  {!actionInFlight && actionResult && (
+                    <>
+                      <span
+                        className={
+                          "inline-flex items-center justify-center rounded-full w-4 h-4 text-[10px] " +
+                          (actionResult.ok
+                            ? "border border-emerald-400 text-emerald-400"
+                            : "border border-amber-400 text-amber-400")
+                        }
+                      >
+                        {actionResult.ok ? "✓" : "!"}
+                      </span>
+                      <span>{actionResult.message}</span>
+                    </>
+                  )}
+                  {!actionInFlight && !actionResult && (
+                    <span>All actions are simulated. No real infrastructure is modified.</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadReport}
+                    className="text-[11px] px-3 py-1.5 rounded-full border border-emerald-500/70 text-emerald-300 hover:bg-emerald-500/10"
+                  >
+                    📄 Download Forensic Report
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="text-[11px] px-3 py-1.5 rounded-full border border-slate-600 hover:border-slate-300 text-slate-200"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // ---------------------- Main Dashboard ---------------------- //
+      function App() {
+        const [loggedIn, setLoggedIn] = useState(false);
+        const [scenario, setScenario] = useState("Tuesday");
+        const [snapshot, setSnapshot] = useState({
+          current_day: null,
+          events: [],
+          alerts: [],
+          stats: {
+            packets_processed: 0,
+            packets_dropped: 0,
+            active_threats: 0,
+          },
+        });
+        const [loading, setLoading] = useState(true);
+        const [selectedAlert, setSelectedAlert] = useState(null);
+        const [actionInFlight, setActionInFlight] = useState(false);
+        const [actionResult, setActionResult] = useState(null);
+        const [trafficPoints, setTrafficPoints] = useState([]);
+        const prevPacketsRef = useRef(0);
+
+        // Start default scenario
+        useEffect(() => {
+          switchScenario("Tuesday");
+        }, []);
+
+        // Poll backend every second and update PPS
+        useEffect(() => {
+          const intervalId = setInterval(() => {
+            fetch("/api/events?limit=250")
+              .then((res) => res.json())
+              .then((data) => {
+                setSnapshot(data);
+                setLoading(false);
+
+                const current =
+                  (data.stats && data.stats.packets_processed) || 0;
+                const prev = prevPacketsRef.current;
+                const delta = Math.max(current - prev, 0); // packets per second
+                prevPacketsRef.current = current;
+
+                const label = new Date().toLocaleTimeString("en-US", {
+                  hour12: false,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+
+                setTrafficPoints((prevPoints) => {
+                  const next = [...prevPoints, { label, value: delta }];
+                  return next.length > 60 ? next.slice(next.length - 60) : next;
+                });
+              })
+              .catch((err) => {
+                console.error("Error fetching /api/events", err);
+              });
+          }, 1000);
+
+          return () => clearInterval(intervalId);
+        }, []);
+
+        const visibleEvents = useMemo(() => {
+          const evts = snapshot.events || [];
+          if (!evts.length) return [];
+          return evts.slice(-80).reverse();
+        }, [snapshot.events]);
+
+        const visibleAlerts = useMemo(() => {
+          const alerts = snapshot.alerts || [];
+          return [...alerts].reverse();
+        }, [snapshot.alerts]);
+
+        function switchScenario(day) {
+          setScenario(day);
+          setLoading(true);
+          setSelectedAlert(null);
+          setActionResult(null);
+          prevPacketsRef.current = 0;
+          setTrafficPoints([]);
+
+          fetch("/api/switch-scenario", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ day }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              console.log("Switched scenario:", data);
+            })
+            .catch((err) => {
+              console.error("Error switching scenario", err);
+            });
+        }
+
+        function onScenarioChange(e) {
+          const day = e.target.value;
+          switchScenario(day);
+        }
+
+        function openAlertModal(alert) {
+          setSelectedAlert(alert);
+          setActionResult(null);
+        }
+
+        function closeAlertModal() {
+          setSelectedAlert(null);
+          setActionInFlight(false);
+          setActionResult(null);
+        }
+
+        function executeSoar(action, targetIpOverride = null) {
+          if (!selectedAlert) return;
+          const target_ip =
+            targetIpOverride || selectedAlert.src_ip || selectedAlert.dst_ip;
+          setActionInFlight(true);
+          setActionResult(null);
+
+          fetch("/api/execute-soar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action,
+              target_ip,
+              alert_id: selectedAlert.id,
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              setActionInFlight(false);
+              setActionResult({
+                ok: true,
+                message: data.message || "Action executed.",
+                action: data.action,
+                ts: data.timestamp,
+              });
+            })
+            .catch((err) => {
+              console.error("SOAR error", err);
+              setActionInFlight(false);
+              setActionResult({
+                ok: false,
+                message: "Failed to reach backend.",
+              });
+            });
+        }
+
+        const stats = snapshot.stats || {};
+        const currentDay = snapshot.current_day || scenario;
+        const latestPps =
+          trafficPoints.length > 0
+            ? trafficPoints[trafficPoints.length - 1].value
+            : 0;
+
+        if (!loggedIn) {
+          return <Login onSuccess={() => setLoggedIn(true)} />;
+        }
+
+        return (
+          <div className="min-h-screen relative overflow-hidden bg-slate-950 text-slate-100">
+            <div className="absolute inset-0 bg-grid opacity-40 pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.12),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(59,130,246,0.10),_transparent_65%)] pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col min-h-screen">
+              {/* Header */}
+              <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-emerald-500 flex items-center justify-center text-slate-950 font-bold text-lg shadow-[0_0_25px_rgba(16,185,129,0.9)]">
+                    T
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-semibold tracking-[0.18em] uppercase text-slate-300">
+                      Titan SIEM
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      High-Fidelity SOC Simulation Console
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span className="uppercase tracking-[0.14em] text-slate-500">
+                      Scenario
+                    </span>
+                    <select
+                      value={scenario}
+                      onChange={onScenarioChange}
+                      className="bg-slate-950/90 border border-slate-700 text-[11px] rounded-full px-3 py-1 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/80 font-mono"
+                    >
+                      <option value="Tuesday">
+                        Tuesday — FTP/SSH Brute Force
+                      </option>
+                      <option value="Wednesday">
+                        Wednesday — DoS / DDoS / Heartbleed
+                      </option>
+                      <option value="Thursday">
+                        Thursday — Web Attacks (SQLi/XSS)
+                      </option>
+                      <option value="Friday-PortScan">
+                        Friday — Port Scan
+                      </option>
+                      <option value="Friday-DDoS">
+                        Friday — DDoS LOIT
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-300 font-mono">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+                    <span>{loading ? "WARMING UP" : "LIVE STREAM"}</span>
+                  </div>
+                </div>
+              </header>
+
+              {/* Main */}
+              <main className="flex-1 min-h-0 px-4 pb-3 pt-3 flex flex-col gap-3">
+                {/* Top-level Traffic Chart */}
+                <section className="flex-none h-56 md:h-64 border border-slate-800 rounded-2xl bg-slate-950/85 panel-glow">
+                  <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                        Real-Time Traffic Analytics
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Packets per second (PPS) — rolling 60 seconds
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full border border-emerald-500/50 text-[10px] px-2 py-0.5 text-emerald-300 font-mono">
+                        PPS: {latestPps}
+                      </div>
+                      {latestPps > 50 && (
+                        <div className="rounded-full border border-red-500/60 text-[10px] px-2 py-0.5 text-red-300 font-mono bg-red-500/10">
+                          Spike detected
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="h-[calc(100%-40px)] px-2 pb-2">
+                    <div className="w-full h-full border border-slate-800 rounded-xl bg-slate-950/95 px-2 py-2">
+                      <TrafficChart points={trafficPoints} />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Bottom grid */}
+                <div className="grid gap-3 xl:grid-cols-[2.2fr,1.3fr] grid-cols-1">
+                  {/* Live Traffic */}
+                  <section className="border border-slate-800 rounded-2xl bg-slate-950/85 panel-glow">
+                    <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                          Live Traffic
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Scenario: {currentDay || "N/A"} — CIC-IDS2017 stream
+                        </div>
+                      </div>
+                      <div className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-[10px] text-slate-400 font-mono">
+                        rows: {(snapshot.events && snapshot.events.length) || 0}
+                      </div>
+                    </div>
+
+                    {/* Fixed-height scrollable table */}
+                    <div className="px-2 pb-3">
+                      <div className="border border-slate-800 rounded-xl bg-slate-950/90 h-[500px]">
+                        <div className="w-full h-full overflow-y-auto">
+                          <table className="w-full border-collapse text-[11px]">
+                            <thead className="bg-slate-900/95 sticky top-0 z-10">
+                              <tr className="text-slate-400">
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Time
+                                </th>
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Src
+                                </th>
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Dst
+                                </th>
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Dst Port
+                                </th>
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Proto
+                                </th>
+                                <th className="text-left px-3 py-2 font-medium">
+                                  Label
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-slate-950/90">
+                              {visibleEvents.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan="6"
+                                    className="text-center text-[11px] text-slate-500 py-6"
+                                  >
+                                    {loading
+                                      ? "Initializing stream..."
+                                      : "No events yet."}
+                                  </td>
+                                </tr>
+                              ) : (
+                                visibleEvents.map((evt, idx) => {
+                                  const label =
+                                    (evt.label || "").toString();
+                                  const isBenign =
+                                    label.toUpperCase() === "BENIGN";
+                                  const rowBg =
+                                    idx % 2 === 0
+                                      ? "bg-slate-950"
+                                      : "bg-slate-950/70";
+                                  return (
+                                    <tr
+                                      key={evt.id}
+                                      className={
+                                        rowBg + " border-b border-slate-900/80"
+                                      }
+                                    >
+                                      <td className="px-3 py-1.5 whitespace-nowrap">
+                                        <span className="text-[11px] text-slate-300">
+                                          {evt.time}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap font-mono text-[11px] text-emerald-300">
+                                        {evt.source_ip || "-"}
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap font-mono text-[11px] text-sky-300">
+                                        {evt.destination_ip || "-"}
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap font-mono text-[11px] text-amber-200">
+                                        {evt.destination_port || "-"}
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap font-mono text-[11px] text-slate-300">
+                                        {evt.protocol || "-"}
+                                      </td>
+                                      <td className="px-3 py-1.5 whitespace-nowrap">
+                                        <span
+                                          className={
+                                            "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] border " +
+                                            (label
+                                              ? isBenign
+                                                ? "border-emerald-500/60 text-emerald-300 bg-emerald-500/10"
+                                                : "border-red-500/60 text-red-200 bg-red-500/10"
+                                              : "border-slate-600 text-slate-300 bg-slate-900")
+                                          }
+                                        >
+                                          {label || "—"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Right Column: Threat Stream + Telemetry */}
+                  <div className="flex flex-col gap-3">
+                    {/* Threat Stream */}
+                    <section className="border border-slate-800 rounded-2xl bg-slate-950/85 panel-glow">
+                      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                            Threat Stream
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Pure behavioral detections 
+                          </div>
+                        </div>
+                        <div className="rounded-full border border-emerald-500/50 px-2 py-0.5 text-[10px] text-emerald-300 font-mono">
+                          active: {stats.active_threats ?? 0}
+                        </div>
+                      </div>
+                      <div className="px-2 pb-3">
+                        <div className="w-full h-[500px] overflow-y-auto pr-1 space-y-2">
+                          {visibleAlerts.length === 0 ? (
+                            <div className="text-[11px] text-slate-500 px-2 py-3">
+                              No alerts raised yet.
+                            </div>
+                          ) : (
+                            visibleAlerts.map((alert) => {
+                              const sev =
+                                (alert.severity || "").toUpperCase();
+                              const sevClass =
+                                sev === "CRITICAL"
+                                  ? "bg-red-500/10 border-red-500/60 text-red-300"
+                                  : "bg-amber-500/10 border-amber-500/60 text-amber-200";
+
+                              const attackName =
+                                alert.attack_name ||
+                                "Behavioral Detection";
+                              const portBadge =
+                                alert.dst_port != null &&
+                                alert.dst_port !== -1
+                                  ? String(alert.dst_port)
+                                  : "multi";
+
+                              const titleColor =
+                                sev === "CRITICAL"
+                                  ? "text-red-300"
+                                  : "text-amber-200";
+
+                              return (
+                                <div
+                                  key={alert.id}
+                                  onClick={() => openAlertModal(alert)}
+                                  className="cursor-pointer border border-slate-800 rounded-xl bg-slate-950/90 hover:border-emerald-500/70 hover:shadow-[0_0_25px_rgba(16,185,129,0.3)] transition-all px-3 py-2 space-y-1"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-0.5">
+                                      <div
+                                        className={
+                                          "inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold " +
+                                          sevClass
+                                        }
+                                      >
+                                        {sev || "ALERT"}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div
+                                          className={
+                                            "text-[11px] font-semibold " +
+                                            titleColor
+                                          }
+                                        >
+                                          {attackName}
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-[10px] text-slate-300 font-mono">
+                                          Port {portBadge}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-mono text-right">
+                                      <div>{alert.time}</div>
+                                      <div className="mt-0.5">
+                                        {alert.layer || "BEHAVIORAL"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-[11px] text-slate-300">
+                                    {alert.description}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1 mt-1 text-[10px]">
+                                    <span className="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 font-mono">
+                                      {alert.src_ip || "N/A"} →{" "}
+                                      {alert.dst_ip || "N/A"}
+                                    </span>
+                                    {alert.protocol && (
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400">
+                                        Proto: {alert.protocol}
+                                      </span>
+                                    )}
+                                    {alert.scenario_day && (
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400">
+                                        Scenario: {alert.scenario_day}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Stats Telemetry */}
+                    <section className="border border-slate-800 rounded-2xl bg-slate-950/85 panel-glow">
+                      <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                            SOC Telemetry
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            Streaming statistics & pipeline health
+                          </div>
+                        </div>
+                        <div className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-400 font-mono">
+                          Build: v1-behavioral
+                        </div>
+                      </div>
+                      <div className="px-3 pb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="border border-slate-800 rounded-xl bg-slate-950/95 px-3 py-2 flex flex-col justify-between">
+                            <div>
+                              <div className="text-[11px] text-slate-400">
+                                Packets Processed
+                              </div>
+                              <div className="text-lg font-semibold text-emerald-400 font-mono">
+                                {stats.packets_processed ?? 0}
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              CIC-IDS2017 rows streamed since scenario start.
+                            </div>
+                          </div>
+                          <div className="border border-slate-800 rounded-xl bg-slate-950/95 px-3 py-2 flex flex-col justify-between">
+                            <div>
+                              <div className="text-[11px] text-slate-400">
+                                Packets Dropped
+                              </div>
+                              <div className="text-lg font-semibold text-red-400 font-mono">
+                                {stats.packets_dropped ?? 0}
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Dropped by SOAR{" "}
+                              <span className="text-slate-300">Block IP</span>{" "}
+                              actions.
+                            </div>
+                          </div>
+                          <div className="border border-slate-800 rounded-xl bg-slate-950/95 px-3 py-2 flex flex-col justify-between">
+                            <div>
+                              <div className="text-[11px] text-slate-400">
+                                Active Threats
+                              </div>
+                              <div className="text-lg font-semibold text-emerald-300 font-mono">
+                                {stats.active_threats ?? 0}
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Alerts that are still in{" "}
+                              <span className="text-emerald-300">ACTIVE</span>{" "}
+                              state.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </main>
+
+              {/* Footer */}
+              <footer className="border-t border-slate-800 bg-slate-950/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                <span>
+                  TITAN SIEM Enterprise — Local SOC Simulator 
+                </span>
+                <span>
+                  Backend: Python · Frontend: React + Tailwind · Chart.js · jsPDF
+                </span>
+              </footer>
+
+              {selectedAlert && (
+                <AlertModal
+                  alert={selectedAlert}
+                  onClose={closeAlertModal}
+                  onExecute={executeSoar}
+                  actionInFlight={actionInFlight}
+                  actionResult={actionResult}
+                />
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

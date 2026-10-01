@@ -1,0 +1,29 @@
+# Python environments
+.venv/
+venv/
+
+# Python generated files
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# CIC-IDS2017 dataset
+data/
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Logs and generated files
+*.log
+
+# Node files if accidentally created
+node_modules/
+package-lock.json

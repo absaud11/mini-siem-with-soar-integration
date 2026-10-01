@@ -1,0 +1,5 @@
+ip,description,severity,source
+205.174.165.73,External SSH/FTP brute-force controller discovered in OSINT feeds,CRITICAL,OSINT-MISP
+192.168.10.15,Internal workstation suspected to be part of a botnet beaconing to C2,HIGH,Internal-IR
+203.0.113.5,Host observed performing wide port scans against DMZ services,MEDIUM,AbuseIPDB
+198.51.100.23,Known command-and-control endpoint for commodity malware,HIGH,ThreatCrowd
